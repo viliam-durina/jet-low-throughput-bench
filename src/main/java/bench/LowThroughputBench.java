@@ -50,6 +50,12 @@ public class LowThroughputBench {
     public static void main(String[] args) throws Exception {
         System.setProperty("hazelcast.logging.type", "log4j");
 
+        JetConfig config = new JetConfig();
+        System.out.println("args: " + Arrays.toString(args));
+        System.out.println("available processors: " + Runtime.getRuntime().availableProcessors());
+        System.out.println("max heap: " + (Runtime.getRuntime().maxMemory() / 1024/1024) + "M");
+        JetInstance instance = Jet.newJetInstance(config);
+
         System.out.println("if you want to tweak timer slack, execute:");
         System.out.println("  sudo echo NNN >/proc/" + ProcessHandle.current().pid() + "/timerslack_ns");
         System.out.println();
@@ -57,12 +63,6 @@ public class LowThroughputBench {
         System.in.read();
 
         benchmarkParkNanos();
-
-        JetConfig config = new JetConfig();
-        System.out.println("args: " + Arrays.toString(args));
-        System.out.println("available processors: " + Runtime.getRuntime().availableProcessors());
-        System.out.println("max heap: " + (Runtime.getRuntime().maxMemory() / 1024/1024) + "M");
-        JetInstance instance = Jet.newJetInstance(config);
 
         int[] rates = {
                 1000,
