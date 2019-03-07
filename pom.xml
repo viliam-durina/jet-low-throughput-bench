@@ -69,6 +69,7 @@
                         <argument>-classpath</argument>
                         <classpath />
                         <argument>bench.LowThroughputBench</argument>
+                        <argument>25</argument>
                     </arguments>
                 </configuration>
             </plugin>

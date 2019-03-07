@@ -24,6 +24,7 @@ import com.hazelcast.jet.config.JetConfig;
 import com.hazelcast.jet.core.ProcessorMetaSupplier;
 import com.hazelcast.jet.datamodel.WindowResult;
 import com.hazelcast.jet.function.FunctionEx;
+import com.hazelcast.jet.impl.util.JetGroupProperty;
 import com.hazelcast.jet.pipeline.Pipeline;
 import com.hazelcast.jet.pipeline.Sinks;
 import com.hazelcast.jet.pipeline.Sources;
@@ -38,31 +39,22 @@ import java.util.Comparator;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import java.util.concurrent.CancellationException;
-import java.util.concurrent.locks.LockSupport;
 import java.util.stream.DoubleStream;
 
 import static com.hazelcast.jet.Util.entry;
 import static com.hazelcast.jet.aggregate.AggregateOperations.counting;
 import static com.hazelcast.jet.pipeline.WindowDefinition.tumbling;
-import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 public class LowThroughputBench {
     public static void main(String[] args) throws Exception {
         System.setProperty("hazelcast.logging.type", "log4j");
-
-        JetConfig config = new JetConfig();
         System.out.println("args: " + Arrays.toString(args));
         System.out.println("available processors: " + Runtime.getRuntime().availableProcessors());
         System.out.println("max heap: " + (Runtime.getRuntime().maxMemory() / 1024/1024) + "M");
+
+        JetConfig config = new JetConfig();
+        config.setProperty(JetGroupProperty.JET_MINIMUM_IDLE_TIME.getName(), args[0]);
         JetInstance instance = Jet.newJetInstance(config);
-
-        System.out.println("if you want to tweak timer slack, execute:");
-        System.out.println("  sudo echo NNN >/proc/" + ProcessHandle.current().pid() + "/timerslack_ns");
-        System.out.println();
-        System.out.println("Press enter");
-        System.in.read();
-
-        benchmarkParkNanos();
 
         int[] rates = {
                 1000,
@@ -130,30 +122,18 @@ public class LowThroughputBench {
         results.values().forEach(System.out::println);
     }
 
-    private static void benchmarkParkNanos() {
-        System.out.println("benchmarking parkNanos...");
-        long startNanos = System.nanoTime();
-        long iterationCount = 5000;
-        for (long i = 0; i < iterationCount; i++) {
-            LockSupport.parkNanos(10_000);
-        }
-        long durationNanos = System.nanoTime() - startNanos;
-        long microsPerIteration = NANOSECONDS.toMicros(durationNanos) / iterationCount;
-        System.out.println("parkNanos(10µs) actually took " + microsPerIteration + "µs");
-    }
-
     private static Method cpuUsageMethod;
     private static OperatingSystemMXBean operatingSystemMXBean = ManagementFactory.getOperatingSystemMXBean();
+    static {
+        try {
+            cpuUsageMethod = operatingSystemMXBean.getClass().getDeclaredMethod("getProcessCpuLoad");
+            cpuUsageMethod.setAccessible(true);
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
     private static double printUsage() {
-        if (cpuUsageMethod == null) {
-            try {
-                cpuUsageMethod = operatingSystemMXBean.getClass().getDeclaredMethod("getProcessCpuLoad");
-                cpuUsageMethod.setAccessible(true);
-            } catch (NoSuchMethodException e) {
-                throw new RuntimeException(e);
-            }
-        }
         Double value;
         try {
             value = (Double) cpuUsageMethod.invoke(operatingSystemMXBean);
